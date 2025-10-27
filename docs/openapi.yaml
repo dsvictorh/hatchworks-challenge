@@ -1,0 +1,342 @@
+openapi: 3.1.0
+info:
+  title: Carton Caps Referrals API
+  version: 1.0.0
+  description: REST API for the referrals system with deep link support
+  contact:
+    name: Victor Herrera
+    email: vherera-jobs@gmail.com
+servers:
+  - url: http://localhost:5087/api/v1
+    description: Local development
+paths:
+  /referrals:
+    get:
+      summary: Get referrals for authenticated user
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ReferralStatus'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetReferralsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /referrals/link:
+    post:
+      summary: Generate referral deep link
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GenerateLinkRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerateLinkResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /referrals/share-message:
+    post:
+      summary: Get a pre-populated share message
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShareMessageRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShareMessageResponse' }
+  /referrals/share:
+    post:
+      summary: Record a share event
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShareEventRequest' }
+      responses:
+        '202': { description: Accepted }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /referrals/events:
+    post:
+      summary: Process referral lifecycle events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReferralEventIn' }
+      responses:
+        '202': { description: Accepted }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /referrals/verify:
+    post:
+      summary: Verify referral code validity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerifyReferralRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerifyReferralResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '410': { $ref: '#/components/responses/Gone' }
+  /referrals/session:
+    post:
+      summary: Create referral session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSessionRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateSessionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /referrals/redeem:
+    patch:
+      summary: Redeem referral code
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RedeemReferralRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RedeemReferralResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { $ref: '#/components/responses/Gone' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/problem+json:
+          schema:
+            type: object
+            properties:
+              type:
+                type: string
+                example: "about:blank"
+              title:
+                type: string
+                example: "Unauthorized"
+              status:
+                type: integer
+                example: 401
+    Forbidden:
+      description: Access denied
+    BadRequest:
+      description: Invalid request
+    Conflict:
+      description: Request conflicts with current state
+    RateLimited:
+      description: Rate limit exceeded
+    Gone:
+      description: Resource no longer available
+  schemas:
+    ReferralStatus:
+      type: string
+      enum: 
+        - invited
+        - clicked
+        - installed
+        - open
+        - registered
+        - redeemed
+        - complete
+        - rejected
+    ShareChannel:
+      type: string
+      enum: [sms, email, generic]
+      example: "email"
+    GetReferralsResponse:
+      type: object
+      properties:
+        referralCode: 
+          type: string
+          example: "XY7G4D"
+        summary:
+          type: object
+          properties:
+            total: 
+              type: integer
+              description: Total number of referrals
+            complete: 
+              type: integer
+              description: Number of completed referrals
+            pending: 
+              type: integer
+              description: Number of pending referrals
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReferralListItem'
+    ReferralListItem:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { $ref: '#/components/schemas/ReferralStatus' }
+        channel: { $ref: '#/components/schemas/ShareChannel' }
+        invitedAt: { type: string, format: date-time }
+        registeredAt: { type: string, format: date-time, nullable: true }
+    GenerateLinkRequest:
+      type: object
+      required: [channel]
+      properties:
+        channel: { $ref: '#/components/schemas/ShareChannel' }
+    GenerateLinkResponse:
+      type: object
+      properties:
+        referralLink: 
+          type: string
+          format: uri
+          example: "https://cartoncaps.link/f84bc2a8ed94d1a06bc4e4e79b8f6c21?ref=XY7G4D"
+        expiresAt: 
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-11-02T23:59:59Z"
+        metadata: 
+          type: object
+          additionalProperties: true
+    ShareMessageRequest:
+      type: object
+      required: [channel]
+      properties:
+        channel: { $ref: '#/components/schemas/ShareChannel' }
+        locale: { type: string, nullable: true }
+    ShareMessageResponse:
+      type: object
+      properties:
+        subject: { type: string, nullable: true }
+        message: { type: string }
+        link: { type: string, format: uri }
+    ShareEventRequest:
+      type: object
+      required: [channel, link]
+      properties:
+        channel: { $ref: '#/components/schemas/ShareChannel' }
+        link: { type: string, format: uri }
+        deviceInfo: { $ref: '#/components/schemas/DeviceInfo' }
+    DeviceInfo:
+      type: object
+      properties:
+        deviceId: { type: string, nullable: true }
+        userAgent: { type: string, nullable: true }
+    ReferralEventIn:
+      type: object
+      required: [event, referralCode]
+      properties:
+        event:
+          type: string
+          enum: [click, install, open, redeemed]
+        referralCode: { type: string }
+        eventId: { type: string, nullable: true }
+        deviceInfo: { $ref: '#/components/schemas/DeviceInfo' }
+    VerifyReferralRequest:
+      type: object
+      required: [referralCode, deviceId]
+      properties:
+        referralCode: 
+          type: string
+          minLength: 6
+          maxLength: 20
+          pattern: "^[A-Za-z0-9]+$"
+          example: "XY7G4D"
+        deviceId: 
+          type: string
+          minLength: 10
+          maxLength: 100
+          example: "ios-4A7B8C9D-E2F3-4G5H-6I7J-8K9L0M1N2O3P"
+    VerifyReferralResponse:
+      type: object
+      properties:
+        isValid: { type: boolean }
+        referrer:
+          type: object
+          nullable: true
+          properties:
+            firstName: { type: string }
+            school: { type: string, nullable: true }
+        campaign:
+          type: object
+          nullable: true
+          additionalProperties: true
+    CreateSessionRequest:
+      type: object
+      required: [referralCode, deviceId]
+      properties:
+        referralCode: 
+          type: string
+          example: "XY7G4D"
+        deviceId: 
+          type: string
+          example: "android-B8C9D0E1-F4G5-6H7I-8J9K-L2M3N4O5P6Q7"
+    CreateSessionResponse:
+      type: object
+      properties:
+        sessionId: { type: string }
+        referralCode: { type: string }
+        expiresAt: { type: string, format: date-time }
+    RedeemReferralRequest:
+      type: object
+      required: [referralCode, refereeUserId]
+      properties:
+        referralCode: { type: string }
+        refereeUserId: { type: string }
+    RedeemReferralResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [redeemed, complete]
+        rewardEligible: { type: boolean }
