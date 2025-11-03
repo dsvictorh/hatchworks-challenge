@@ -7,8 +7,10 @@ info:
     name: Victor Herrera
     email: vherera-jobs@gmail.com
 servers:
-  - url: http://localhost:5087/api/v1
-    description: Local development
+  - url: http://localhost:8080/api/v1
+    description: Local (host)
+  - url: http://localhost:8081/api/v1
+    description: Local (docker compose)
 paths:
   /referrals:
     get:
@@ -42,7 +44,7 @@ paths:
   /referrals/link:
     post:
       summary: Generate referral deep link
-      security: [{ bearerAuth: [] }]
+      security: []
       requestBody:
         required: true
         content:
@@ -55,12 +57,12 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/GenerateLinkResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/RateLimited' }
+        default: { $ref: '#/components/responses/Problem' }
   /referrals/share-message:
     post:
       summary: Get a pre-populated share message
-      security: [{ bearerAuth: [] }]
+      security: []
       requestBody:
         required: true
         content:
@@ -75,7 +77,7 @@ paths:
   /referrals/share:
     post:
       summary: Record a share event
-      security: [{ bearerAuth: [] }]
+      security: []
       requestBody:
         required: true
         content:
@@ -84,8 +86,8 @@ paths:
       responses:
         '202': { description: Accepted }
         '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/RateLimited' }
+        default: { $ref: '#/components/responses/Problem' }
   /referrals/events:
     post:
       summary: Process referral lifecycle events
@@ -97,6 +99,7 @@ paths:
       responses:
         '202': { description: Accepted }
         '400': { $ref: '#/components/responses/BadRequest' }
+        default: { $ref: '#/components/responses/Problem' }
   /referrals/verify:
     post:
       summary: Verify referral code validity
@@ -112,7 +115,9 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/VerifyReferralResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '410': { $ref: '#/components/responses/Gone' }
+        default: { $ref: '#/components/responses/Problem' }
   /referrals/session:
     post:
       summary: Create referral session
@@ -128,10 +133,11 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CreateSessionResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        default: { $ref: '#/components/responses/Problem' }
   /referrals/redeem:
     patch:
       summary: Redeem referral code
-      security: [{ bearerAuth: [] }]
+      security: []
       requestBody:
         required: true
         content:
@@ -148,6 +154,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '410': { $ref: '#/components/responses/Gone' }
+        default: { $ref: '#/components/responses/Problem' }
 components:
   securitySchemes:
     bearerAuth:
@@ -155,6 +162,18 @@ components:
       scheme: bearer
       bearerFormat: JWT
   responses:
+    Problem:
+      description: Error
+      content:
+        application/problem+json:
+          schema:
+            type: object
+            properties:
+              type: { type: string, example: "about:blank" }
+              title: { type: string }
+              status: { type: integer }
+              detail: { type: string }
+              instance: { type: string }
     Unauthorized:
       description: Authentication required
       content:
@@ -181,6 +200,8 @@ components:
       description: Rate limit exceeded
     Gone:
       description: Resource no longer available
+    NotFound:
+      description: Resource not found
   schemas:
     ReferralStatus:
       type: string
@@ -278,7 +299,7 @@ components:
       properties:
         event:
           type: string
-          enum: [click, install, open, redeemed]
+          enum: [click, install, open, registered, redeemed]
         referralCode: { type: string }
         eventId: { type: string, nullable: true }
         deviceInfo: { $ref: '#/components/schemas/DeviceInfo' }
@@ -338,5 +359,6 @@ components:
       properties:
         status:
           type: string
-          enum: [redeemed, complete]
+          enum: [registered, redeemed, complete]
         rewardEligible: { type: boolean }
+        default: { $ref: '#/components/responses/Problem' }
